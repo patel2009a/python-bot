@@ -1,337 +1,189 @@
-import time
+import requests
+from bs4 import BeautifulSoup
+import telepot
+import re
+import os
 import json
-import telebot
 
-##TOKEN DETAILS
-TOKEN = "TRON"
-
-BOT_TOKEN = "5710284858:AAHcIDYAtWAC01p8BsHRl4cIwhcKpBqNlTQ"
-PAYMENT_CHANNEL = "@testpostchnl" #add payment channel here including the '@' sign
-OWNER_ID = 5151868182 #write owner's user id here.. get it from @MissRose_Bot by /id
-CHANNELS = ["@testpostchnl"] #add channels to be checked here in the format - ["Channel 1", "Channel 2"] 
-              #you can add as many channels here and also add the '@' sign before channel username
-Daily_bonus = 1 #Put daily bonus amount here!
-Mini_Withdraw = 0.5  #remove 0 and add the minimum withdraw u want to set
-Per_Refer = 0.0001 #add per refer bonus here
-
-bot = telebot.TeleBot(BOT_TOKEN)
-
-def check(id):
-    for i in CHANNELS:
-        check = bot.get_chat_member(i, id)
-        if check.status != 'left':
-            pass
-        else:
-            return False
-    return True
-bonus = {}
-
-def menu(id):
-    keyboard = telebot.types.ReplyKeyboardMarkup(True)
-    keyboard.row('🆔 Account')
-    keyboard.row('🙌🏻 Referrals', '🎁 Bonus', '💸 Withdraw')
-    keyboard.row('⚙️ Set Wallet', '📊Statistics')
-    bot.send_message(id, "*🏡 Home*", parse_mode="Markdown",
-                     reply_markup=keyboard)
-
-@bot.message_handler(commands=['start'])
-def start(message):
-   try:
-    user = message.chat.id
-    msg = message.text
-    if msg == '/start':
-        user = str(user)
-        data = json.load(open('users.json', 'r'))
-        if user not in data['referred']:
-            data['referred'][user] = 0
-            data['total'] = data['total'] + 1
-        if user not in data['referby']:
-            data['referby'][user] = user
-        if user not in data['checkin']:
-            data['checkin'][user] = 0
-        if user not in data['DailyQuiz']:
-            data['DailyQuiz'][user] = "0"
-        if user not in data['balance']:
-            data['balance'][user] = 0
-        if user not in data['wallet']:
-            data['wallet'][user] = "none"
-        if user not in data['withd']:
-            data['withd'][user] = 0
-        if user not in data['id']:
-            data['id'][user] = data['total']+1
-        json.dump(data, open('users.json', 'w'))
-        print(data)
-        markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(telebot.types.InlineKeyboardButton(
-           text='🤼‍♂️ Joined', callback_data='check'))
-        msg_start = "*🍔 To Use This Bot You Need To Join This Channel - "
-        for i in CHANNELS:
-            msg_start += f"\n➡️ {i}\n"
-        msg_start += "*"
-        bot.send_message(user, msg_start,
-                         parse_mode="Markdown", reply_markup=markup)
+# Load user data from a JSON file
+def load_user_data(file_path='users.json'):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            return json.load(file)
     else:
+        return {}
 
-        data = json.load(open('users.json', 'r'))
-        user = message.chat.id
-        user = str(user)
-        refid = message.text.split()[1]
-        if user not in data['referred']:
-            data['referred'][user] = 0
-            data['total'] = data['total'] + 1
-        if user not in data['referby']:
-            data['referby'][user] = refid
-        if user not in data['checkin']:
-            data['checkin'][user] = 0
-        if user not in data['DailyQuiz']:
-            data['DailyQuiz'][user] = 0
-        if user not in data['balance']:
-            data['balance'][user] = 0
-        if user not in data['wallet']:
-            data['wallet'][user] = "none"
-        if user not in data['withd']:
-            data['withd'][user] = 0
-        if user not in data['id']:
-            data['id'][user] = data['total']+1
-        json.dump(data, open('users.json', 'w'))
-        print(data)
-        markups = telebot.types.InlineKeyboardMarkup()
-        markups.add(telebot.types.InlineKeyboardButton(
-            text='🤼‍♂️ Joined', callback_data='check'))
-        msg_start = "*🍔 To Use This Bot You Need To Join This Channel - \n➡️ @ Fill your channels at line: 101 and 157*"
-        bot.send_message(user, msg_start,
-                         parse_mode="Markdown", reply_markup=markups)
-   except:
-        bot.send_message(message.chat.id, "This command having error pls wait for ficing the glitch by admin")
-        bot.send_message(OWNER_ID, "Your bot got an error fix it fast!\n Error on command: "+message.text)
-        return
+# Save user data to a JSON file
+def save_user_data(users, file_path='users.json'):
+    with open(file_path, 'w') as file:
+        json.dump(users, file)
 
-@bot.callback_query_handler(func=lambda call: True)
-def query_handler(call):
-   try:
-    ch = check(call.message.chat.id)
-    if call.data == 'check':
-        if ch == True:
-            data = json.load(open('users.json', 'r'))
-            user_id = call.message.chat.id
-            user = str(user_id)
-            bot.answer_callback_query(
-                callback_query_id=call.id, text='✅ You joined Now yu can earn money')
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            if user not in data['refer']:
-                data['refer'][user] = True
+# Initialize bot and user data
+bot_token = '7255915165:AAEAl_QGZznRt6yfKe0rrYngQD0dQkuWmEU'
+bot = telepot.Bot(bot_token)
+users = load_user_data()
 
-                if user not in data['referby']:
-                    data['referby'][user] = user
-                    json.dump(data, open('users.json', 'w'))
-                if int(data['referby'][user]) != user_id:
-                    ref_id = data['referby'][user]
-                    ref = str(ref_id)
-                    if ref not in data['balance']:
-                        data['balance'][ref] = 0
-                    if ref not in data['referred']:
-                        data['referred'][ref] = 0
-                    json.dump(data, open('users.json', 'w'))
-                    data['balance'][ref] += Per_Refer
-                    data['referred'][ref] += 1
-                    bot.send_message(
-                        ref_id, f"*🏧 New Referral on Level 1, You Got : +{Per_Refer} {TOKEN}*", parse_mode="Markdown")
-                    json.dump(data, open('users.json', 'w'))
-                    return menu(call.message.chat.id)
+# Read sites from a file
+def read_sites(file_path):
+    with open(file_path, 'r') as file:
+        sites = file.readlines()
+    return [site.strip() for site in sites]
 
-                else:
-                    json.dump(data, open('users.json', 'w'))
-                    return menu(call.message.chat.id)
+# Format URL
+def format_url(url):
+    if not url.startswith('http://') and not url.startswith('https://'):
+        return 'http://' + url
+    return url
 
-            else:
-                json.dump(data, open('users.json', 'w'))
-                menu(call.message.chat.id)
+# Check site status
+def check_site_status(url):
+    try:
+        response = requests.get(url, timeout=10)
+        return response, None
+    except requests.RequestException as e:
+        return None, f"Error: {e}"
 
+# Check Cloudflare protection
+def check_cloudflare(response):
+    return 'cloudflare' in response.headers.get('Server', '').lower()
+
+# Check for CAPTCHA
+def check_captcha(response):
+    soup = BeautifulSoup(response.text, 'html.parser')
+    captcha = soup.find_all(text=re.compile(r'captcha', re.I))
+    return bool(captcha)
+
+# Check for payment gateways
+def check_payment_gateway(response):
+    text = response.text.lower()
+    gateways = {
+        'stripe': 'Stripe',
+        'braintree': 'Braintree',
+        'shopify': 'Shopify',
+        'paypal': 'PayPal',
+        'skrill': 'Skrill',
+        'payoneer': 'Payoneer',
+        'nab': 'NAB',
+        'omise': 'Omise',
+        'epay': 'ePay',
+        'mastercard': 'Mastercard',
+        'visa': 'Visa',
+        'discover': 'Discover',
+        'american express': 'American Express',
+        'adyen': 'Adyen',
+        'square': 'Square',
+        'authorize.net': 'Authorize.Net',
+        '2checkout': '2Checkout',
+        'worldpay': 'Worldpay',
+        'alipay': 'Alipay',
+        'wechat pay': 'WeChat Pay',
+        'unionpay': 'UnionPay',
+        'apple pay': 'Apple Pay',
+        'google pay': 'Google Pay',
+        'amazon pay': 'Amazon Pay'
+    }
+    detected_gateways = [name for keyword, name in gateways.items() if keyword in text]
+    return ', '.join(detected_gateways) if detected_gateways else 'Unknown'
+
+# Send a message to a Telegram chat
+def send_to_telegram(chat_id, message):
+    bot.sendMessage(chat_id, message)
+
+# Command handler for /start
+def handle_start(chat_id, user_name):
+    if chat_id not in users:
+        users[chat_id] = {'name': user_name, 'premium': False}
+        save_user_data(users)
+    send_to_telegram(chat_id, f"Welcome {user_name}!\nUse /cmds to see available commands.")
+
+# Command handler for /cmds
+def handle_cmds(chat_id):
+    cmds_message = ("Available commands:\n"
+                    "/start - Start interaction with the bot\n"
+                    "/cmds - List all commands\n"
+                    "/premium - Get premium access\n"
+                    "/kick - Remove a user (admin only)\n"
+                    "/scan - Scan a file for site status\n")
+    send_to_telegram(chat_id, cmds_message)
+
+# Command handler for /premium
+def handle_premium(chat_id):
+    users[chat_id]['premium'] = True
+    save_user_data(users)
+    send_to_telegram(chat_id, "You now have premium access!")
+
+# Command handler for /kick
+def handle_kick(chat_id, target_chat_id):
+    if users[chat_id].get('admin', False):
+        if target_chat_id in users:
+            del users[target_chat_id]
+            save_user_data(users)
+            send_to_telegram(chat_id, f"User {target_chat_id} has been kicked.")
         else:
-            bot.answer_callback_query(
-                callback_query_id=call.id, text='❌ You not Joined')
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            markup = telebot.types.InlineKeyboardMarkup()
-            markup.add(telebot.types.InlineKeyboardButton(
-                text='🤼‍♂️ Joined', callback_data='check'))
-            msg_start = "*🍔 To Use This Bot You Need To Join This Channel - \n➡️ @ Fill your channels at line: 101 and 157*"
-            bot.send_message(call.message.chat.id, msg_start,
-                             parse_mode="Markdown", reply_markup=markup)
-   except:
-        bot.send_message(call.message.chat.id, "This command having error pls wait for ficing the glitch by admin")
-        bot.send_message(OWNER_ID, "Your bot got an error fix it fast!\n Error on command: "+call.data)
-        return
-
-@bot.message_handler(content_types=['text'])
-def send_text(message):
-   try:
-    if message.text == '🆔 Account':
-        data = json.load(open('users.json', 'r'))
-        accmsg = '*👮 User : {}\n\n⚙️ Wallet : *`{}`*\n\n💸 Balance : *`{}`* {}*'
-        user_id = message.chat.id
-        user = str(user_id)
-
-        if user not in data['balance']:
-            data['balance'][user] = 0
-        if user not in data['wallet']:
-            data['wallet'][user] = "none"
-
-        json.dump(data, open('users.json', 'w'))
-
-        balance = data['balance'][user]
-        wallet = data['wallet'][user]
-        msg = accmsg.format(message.from_user.first_name,
-                            wallet, balance, TOKEN)
-        bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-    if message.text == '🙌🏻 Referrals':
-        data = json.load(open('users.json', 'r'))
-        ref_msg = "*⏯️ Total Invites : {} Users\n\n👥 Refferrals System\n\n1 Level:\n🥇 Level°1 - {} {}\n\n🔗 Referral Link ⬇️\n{}*"
-
-        bot_name = bot.get_me().username
-        user_id = message.chat.id
-        user = str(user_id)
-
-        if user not in data['referred']:
-            data['referred'][user] = 0
-        json.dump(data, open('users.json', 'w'))
-
-        ref_count = data['referred'][user]
-        ref_link = 'https://telegram.me/{}?start={}'.format(
-            bot_name, message.chat.id)
-        msg = ref_msg.format(ref_count, Per_Refer, TOKEN, ref_link)
-        bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-    if message.text == "⚙️ Set Wallet":
-        user_id = message.chat.id
-        user = str(user_id)
-
-        keyboard = telebot.types.ReplyKeyboardMarkup(True)
-        keyboard.row('🚫 Cancel')
-        send = bot.send_message(message.chat.id, "_⚠️Send your TRX Wallet Address._",
-                                parse_mode="Markdown", reply_markup=keyboard)
-        # Next message will call the name_handler function
-        bot.register_next_step_handler(message, trx_address)
-    if message.text == "🎁 Bonus":
-        user_id = message.chat.id
-        user = str(user_id)
-        cur_time = int((time.time()))
-        data = json.load(open('users.json', 'r'))
-        #bot.send_message(user_id, "*🎁 Bonus Button is Under Maintainance*", parse_mode="Markdown")
-        if (user_id not in bonus.keys()) or (cur_time - bonus[user_id] > 60*60*24):
-            data['balance'][(user)] += Daily_bonus
-            bot.send_message(
-                user_id, f"Congrats you just received {Daily_bonus} {TOKEN}")
-            bonus[user_id] = cur_time
-            json.dump(data, open('users.json', 'w'))
-        else:
-            bot.send_message(
-                message.chat.id, "❌*You can only take bonus once every 24 hours!*",parse_mode="markdown")
-        return
-
-    if message.text == "📊Statistics":
-        user_id = message.chat.id
-        user = str(user_id)
-        data = json.load(open('users.json', 'r'))
-        msg = "*📊 Total members : {} Users\n\n🥊 Total successful Withdraw : {} {}*"
-        msg = msg.format(data['total'], data['totalwith'], TOKEN)
-        bot.send_message(user_id, msg, parse_mode="Markdown")
-        return
-
-    if message.text == "💸 Withdraw":
-        user_id = message.chat.id
-        user = str(user_id)
-
-        data = json.load(open('users.json', 'r'))
-        if user not in data['balance']:
-            data['balance'][user] = 0
-        if user not in data['wallet']:
-            data['wallet'][user] = "none"
-        json.dump(data, open('users.json', 'w'))
-
-        bal = data['balance'][user]
-        wall = data['wallet'][user]
-        if wall == "none":
-            bot.send_message(user_id, "_❌ wallet Not set_",
-                             parse_mode="Markdown")
-            return
-        if bal >= Mini_Withdraw:
-            bot.send_message(user_id, "_Enter Your Amount_",
-                             parse_mode="Markdown")
-            bot.register_next_step_handler(message, amo_with)
-        else:
-            bot.send_message(
-                user_id, f"_❌Your balance low you should have at least {Mini_Withdraw} {TOKEN} to Withdraw_", parse_mode="Markdown")
-            return
-   except:
-        bot.send_message(message.chat.id, "This command having error pls wait for ficing the glitch by admin")
-        bot.send_message(OWNER_ID, "Your bot got an error fix it fast!\n Error on command: "+message.text)
-        return
-
-def trx_address(message):
-   try:
-    if message.text == "🚫 Cancel":
-        return menu(message.chat.id)
-    if len(message.text) == 34:
-        user_id = message.chat.id
-        user = str(user_id)
-        data = json.load(open('users.json', 'r'))
-        data['wallet'][user] = message.text
-
-        bot.send_message(message.chat.id, "*💹Your Trx wallet set to " +
-                         data['wallet'][user]+"*", parse_mode="Markdown")
-        json.dump(data, open('users.json', 'w'))
-        return menu(message.chat.id)
+            send_to_telegram(chat_id, "User not found.")
     else:
-        bot.send_message(
-            message.chat.id, "*⚠️ It's Not a Valid Trx Address!*", parse_mode="Markdown")
-        return menu(message.chat.id)
-   except:
-        bot.send_message(message.chat.id, "This command having error pls wait for ficing the glitch by admin")
-        bot.send_message(OWNER_ID, "Your bot got an error fix it fast!\n Error on command: "+message.text)
-        return
+        send_to_telegram(chat_id, "You are not authorized to perform this action.")
 
-def amo_with(message):
-   try:
-    user_id = message.chat.id
-    amo = message.text
-    user = str(user_id)
-    data = json.load(open('users.json', 'r'))
-    if user not in data['balance']:
-        data['balance'][user] = 0
-    if user not in data['wallet']:
-        data['wallet'][user] = "none"
-    json.dump(data, open('users.json', 'w'))
+# Command handler for /scan
+def handle_scan(chat_id, file_path):
+    sites = read_sites(file_path)
+    for site in sites:
+        formatted_site = format_url(site)
+        response, status_message = check_site_status(formatted_site)
+        
+        if response:
+            cloudflare = check_cloudflare(response)
+            captcha = check_captcha(response)
+            gateway = check_payment_gateway(response)
+            
+            cloudflare_status = 'Yes 😔' if cloudflare else 'No 🔥'
+            captcha_status = 'Yes 😔' if captcha else 'No 🔥'
+            overall_status = 'Good 🔥' if not cloudflare and not captcha else 'Not good 😔'
+            
+            message = (f"Gateways Fetched Successfully ✅\n"
+                       f"━━━━━━━━━━━━━━\n"
+                       f"➔ Website ⋙ ({site})\n"
+                       f"➔ Gateways ⋙ ({gateway})\n"
+                       f"➔ Captcha ⋙ ({captcha_status})\n"
+                       f"➔ Cloudflare ⋙ ({cloudflare_status})\n"
+                       f"➔ Status ⋙ ({overall_status})\n"
+                       f"\nBot by - @itsyo3")
+        else:
+            message = f"Site: {site}\nStatus: {status_message}"
+        
+        send_to_telegram(chat_id, message)
 
-    bal = data['balance'][user]
-    wall = data['wallet'][user]
-    msg = message.text
-    if msg.isdigit() == False:
-        bot.send_message(
-            user_id, "_📛 Invaild value. Enter only numeric value. Try again_", parse_mode="Markdown")
-        return
-    if int(message.text) < Mini_Withdraw:
-        bot.send_message(
-            user_id, f"_❌ Minimum withdraw {Mini_Withdraw} {TOKEN}_", parse_mode="Markdown")
-        return
-    if int(message.text) > bal:
-        bot.send_message(
-            user_id, "_❌ You Can't withdraw More than Your Balance_", parse_mode="Markdown")
-        return
-    amo = int(amo)
-    data['balance'][user] -= int(amo)
-    data['totalwith'] += int(amo)
-    bot_name = bot.get_me().username
-    json.dump(data, open('users.json', 'w'))
-    bot.send_message(user_id, "✅* Withdraw is request to our owner automatically\n\n💹 Payment Channel :- "+PAYMENT_CHANNEL +"*", parse_mode="Markdown")
+# Main function to handle incoming messages
+def handle(msg):
+    content_type, chat_type, chat_id = telepot.glance(msg)
+    user_name = msg['from']['first_name']
 
-    markupp = telebot.types.InlineKeyboardMarkup()
-    markupp.add(telebot.types.InlineKeyboardButton(text='🍀 BOT LINK', url=f'https://telegram.me/{bot_name}?start={OWNER_ID}'))
-
-    send = bot.send_message(PAYMENT_CHANNEL,  "✅* New Withdraw\n\n⭐ Amount - "+str(amo)+f" {TOKEN}\n🦁 User - @"+message.from_user.username+"\n💠 Wallet* - `"+data['wallet'][user]+"`\n☎️ *User Referrals = "+str(
-        data['referred'][user])+"\n\n🏖 Bot Link - @"+bot_name+"\n⏩ Please wait our owner will confrim it*", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=markupp)
-   except:
-        bot.send_message(message.chat.id, "This command having error pls wait for ficing the glitch by admin")
-        bot.send_message(OWNER_ID, "Your bot got an error fix it fast!\n Error on command: "+message.text)
-        return
+    if content_type == 'text':
+        text = msg['text']
+        if text.startswith('/start'):
+            handle_start(chat_id, user_name)
+        elif text.startswith('/cmds'):
+            handle_cmds(chat_id)
+        elif text.startswith('/premium'):
+            handle_premium(chat_id)
+        elif text.startswith('/kick'):
+            parts = text.split()
+            if len(parts) == 2:
+                target_chat_id = int(parts[1])
+                handle_kick(chat_id, target_chat_id)
+        elif text.startswith('/scan'):
+            handle_scan(chat_id, 'site.txt')
+    elif content_type == 'document':
+        if users.get(chat_id, {}).get('premium', False):
+            file_id = msg['document']['file_id']
+            file_path = bot.getFile(file_id)['file_path']
+            handle_scan(chat_id, file_path)
+        else:
+            send_to_telegram(chat_id, "You need to be a premium user to scan files.")
 
 if __name__ == '__main__':
-    bot.polling(none_stop=True)
+    bot.message_loop(handle)
+    print('Bot is listening...')
+
+# To run this bot, make sure to replace 'YOUR_TELEGRAM_BOT_TOKEN' with your actual bot token
+# and ensure the bot has access to the 'users.json' file for storing user data.
